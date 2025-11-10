@@ -11,12 +11,6 @@ def get_model_and_tokenizer(model_string: str):
     ).eval()
     tokenizer = AutoTokenizer.from_pretrained(model_string)
     
-    with torch.no_grad():
-        ids = tokenizer('pt')
-        out = model(**ids)
-
-    del ids, out
-
     return model, tokenizer
 
 

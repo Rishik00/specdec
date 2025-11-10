@@ -1,9 +1,8 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from typing import List, Optional
+from typing import List
 
-
-DEVICE = 'cuda' torch.cuda.is_available() else 'cpu'
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
 def get_model_and_tokenizer(model_string: str):
     model = AutoModelForCausalLM.from_pretrained(
@@ -14,7 +13,7 @@ def get_model_and_tokenizer(model_string: str):
     
     with torch.no_grad():
         ids = tokenizer('pt')
-        out = moddel(**ids)
+        out = model(**ids)
 
     del ids, out
 
@@ -23,6 +22,7 @@ def get_model_and_tokenizer(model_string: str):
 
 @torch.no_grad()
 def run_baseline(target_model, target_tokenizer, inputs, max_new_tokens):
+
     input_len = inputs["input_ids"].size(1)
     outputs = target_model.generate(
         **inputs, max_new_tokens=max_new_tokens
@@ -96,6 +96,7 @@ def speculative_decoding(
     max_draft_tokens: int
 ):
     inputs = target_tokenizer([prompt], return_tensors="pt").to(target_model.device)
+    base_out = run_baseline(target_model, target_tokenizer, inputs)
 
     draft_tokens, draft_probs = generate_draft_tokens(
         draft_model, inputs["input_ids"], max_draft_tokens
@@ -106,7 +107,7 @@ def speculative_decoding(
     )
 
     result = target_tokenizer.decode(final_ids[0], skip_special_tokens=True)
-    return result
+    return base_out, result
 
 def run(
     target: str, 
@@ -126,12 +127,14 @@ def run(
     target_model, target_tokenizer = get_model_and_tokenizer("Qwen/Qwen2.5-1.5B-Instruct")
     draft_model, draft_tokenizer   = get_model_and_tokenizer("Qwen/Qwen2.5-0.5B-Instruct")
 
-    out = speculative_decoding(
-        target_model, target_tokenizer,
-        draft_model, draft_tokenizer,
-        prompt,
-        max_new_tokens=64,
-        max_draft_tokens=16
-    )
+    for prompt in prompts:
+        base_out, result = speculative_decoding(
+            target_model, target_tokenizer,
+            draft_model, draft_tokenizer,
+            prompt,
+            max_new_tokens=64,
+            max_draft_tokens=16
+        )
+        print(base_out, result)
 
     print("Finished speculative decoding")

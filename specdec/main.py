@@ -124,16 +124,16 @@ def run(
     print(f"Maximum draft tokens: {max_draft_tokens}")
     print("==="*80)
 
-    target_model, target_tokenizer = get_model_and_tokenizer("Qwen/Qwen2.5-1.5B-Instruct")
-    draft_model, draft_tokenizer   = get_model_and_tokenizer("Qwen/Qwen2.5-0.5B-Instruct")
+    target_model, target_tokenizer = get_model_and_tokenizer(target)
+    draft_model, draft_tokenizer   = get_model_and_tokenizer(draft)
 
     for prompt in prompts:
         base_out, result = speculative_decoding(
             target_model, target_tokenizer,
             draft_model, draft_tokenizer,
             prompt,
-            max_new_tokens=64,
-            max_draft_tokens=16
+            max_new_tokens=max_new_tokens,
+            max_draft_tokens=max_draft_tokens
         )
         print(base_out, result)
 

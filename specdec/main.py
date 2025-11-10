@@ -2,7 +2,7 @@ import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import List
 
-from utils import Timer
+from utils import Timer, PROMPTS, plot_times
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
 
@@ -102,9 +102,10 @@ def speculative_decoding(
         final_ids = verify_draft_tokens(
             draft_tokens, draft_probs, inputs["input_ids"], target_model
         )
+    
 
     result = target_tokenizer.decode(final_ids[0], skip_special_tokens=True)
-    return base_out, result
+    return base_out, result, draft_t.time_elapsed, verify_t.time_elapsed
 
 
 def run(
@@ -112,7 +113,8 @@ def run(
     draft: str,
     prompts: List[str],
     max_new_tokens: int,
-    max_draft_tokens: int
+    max_draft_tokens: int,
+    plot_times: bool
 ):
     print("SPECULATIVE DECODING RUN")
     print("==="*80)
@@ -125,14 +127,25 @@ def run(
     target_model, target_tokenizer = get_model_and_tokenizer(target)
     draft_model, _ = get_model_and_tokenizer(draft)
 
+    draft_times, verified_times = [], []
+    if prompts is [] or prompts is None:
+        prompts = PROMPTS
     for prompt in prompts:
-        base_out, result = speculative_decoding(
+        base_out, result, draft_time_elapsed, verify_time_elapsed = speculative_decoding(
             target_model, target_tokenizer,
             draft_model,
             prompt,
             max_new_tokens=max_new_tokens,
             max_draft_tokens=max_draft_tokens
         )
-        print(base_out, result)
+
+        draft_times.append(draft_time_elapsed)
+        verified_times.append(verify_time_elapsed)
 
     print("Finished speculative decoding")
+
+    if plot_times:
+        plot_times(draft_times, verified_times)
+
+
+    return draft_times, verified_times

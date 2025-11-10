@@ -1,16 +1,15 @@
 import time
 import matplotlib.pyplot as plt
 
-
-class CountTime(object):
-    def __init__(self):
-        pass
+class Timer:
 
     def __enter__(self):
-        pass
+        self.start_time = time.perf_counter()
+        return self
 
-    def __exit(self):
-        pass
+    def __exit__(self):
+        self.end = time.per_counter()
+        self.time_elapsed = self.end_time - self.start_time
 
 
 def plot_times():

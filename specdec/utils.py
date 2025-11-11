@@ -22,49 +22,27 @@ PROMPTS = [
     "Explain the trade-off between draft model size and acceptance rate in speculative decoding, and be blunt about when it's not worth it."
 ]
 
-
 class Timer:
-
     def __enter__(self):
         self.start_time = time.perf_counter()
         return self
-
-    def __exit__(self):
-        self.end = time.per_counter()
+    
+    def __exit__(self, exc_type, exc_value, traceback):
+        self.end_time = time.perf_counter()
         self.time_elapsed = self.end_time - self.start_time
 
-def plot_times(baseline_timings, speculative_timings):
-    sns.set_style("whitegrid")
-    fig, (ax1, ax2) = plt.subplots(1, 2, figsize=(14, 5))
-    
-    # Plot 1: Line plot comparing timings
-    x = np.arange(len(baseline_timings))
-    ax1.plot(x, baseline_timings, marker='o', linewidth=2, markersize=8, 
-             label='Baseline', color='#e74c3c')
-    ax1.plot(x, speculative_timings, marker='s', linewidth=2, markersize=8, 
-             label='Speculative', color='#2ecc71')
-    ax1.set_xlabel('Run Index', fontsize=12)
-    ax1.set_ylabel('Time (ms)', fontsize=12)
-    ax1.set_title('Timing Comparison', fontsize=14, fontweight='bold')
-    ax1.legend(fontsize=11)
-    ax1.grid(True, alpha=0.3)
-    
-    # Plot 2: Box plot for distribution
-    data = [baseline_timings, speculative_timings]
-    bp = ax2.boxplot(data, labels=['Baseline', 'Speculative'], 
-                     patch_artist=True, widths=0.6)
-    bp['boxes'][0].set_facecolor('#e74c3c')
-    bp['boxes'][1].set_facecolor('#2ecc71')
-    ax2.set_ylabel('Time (ms)', fontsize=12)
-    ax2.set_title('Timing Distribution', fontsize=14, fontweight='bold')
-    ax2.grid(True, alpha=0.3, axis='y')
-    
-    # Add speedup text
-    avg_baseline = np.mean(baseline_timings)
-    avg_speculative = np.mean(speculative_timings)
-    speedup = avg_baseline / avg_speculative
-    fig.suptitle(f'Average Speedup: {speedup:.2f}×', 
-                 fontsize=16, fontweight='bold', y=1.02)
-    plt.savefig('plot.png')
+def plot_timings(baseline, speculative):
+    import matplotlib.pyplot as plt
+    import numpy as np
+
+    x = np.arange(len(baseline))
+
+    plt.figure(figsize=(8, 4))
+    plt.plot(x, baseline, label="Baseline", linewidth=2)
+    plt.plot(x, speculative, label="Speculative", linewidth=2)
+    plt.xlabel("Run Index")
+    plt.ylabel("Time (ms)")
+    plt.title("Baseline vs Speculative Decoding Time")
+    plt.legend()
     plt.tight_layout()
     plt.show()

@@ -27,3 +27,7 @@ specdec/
   metrics.py          # timing, acceptance stats    (Yet to be added)
   utils.py            # timers, helpers (Done)
 ````
+
+# Some early timing results
+
+![alt text](assets/image.png)

@@ -1,11 +1,13 @@
+import gc
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import List
 from tqdm import tqdm
 
-from utils import Timer, PROMPTS, plot_times
 
-DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+def cleanup():
+    torch.cuda.empty_cache()
+    gc.collect()
 
 def get_model_and_tokenizer(model_string: str):
     model = AutoModelForCausalLM.from_pretrained(
@@ -14,6 +16,7 @@ def get_model_and_tokenizer(model_string: str):
     ).eval()
     tokenizer = AutoTokenizer.from_pretrained(model_string)
     return model, tokenizer
+
 
 @torch.no_grad()
 def run_baseline(target_model, target_tokenizer, inputs, max_new_tokens):
@@ -86,6 +89,7 @@ def verify_draft_tokens(draft_tokens, draft_probs, input_ids, target_model):
     accepted = torch.tensor(accepted, device=input_ids.device).unsqueeze(0)
     final_sequence = torch.cat([input_ids, accepted], dim=1)
 
+    del target_out, target_logits
     return final_sequence, num_rejected, num_accepted
 
 
@@ -114,7 +118,7 @@ def speculative_decoding(
         'num_accepted': num_accepted,
         'num_rejected': num_rejected,
         'base_time': base_t.time_elapsed,
-        'speculative_time': spec_t.time_elapsed,
+        'spec_time': spec_t.time_elapsed,
     }
     
 
@@ -128,7 +132,7 @@ def run(
     prompts: List[str],
     max_new_tokens: int,
     max_draft_tokens: int,
-    plot_times: bool
+    plot_times: bool = True
 ):
     print("SPECULATIVE DECODING RUN")
     print("==="*80)
@@ -157,10 +161,12 @@ def run(
         base_times.append(results['base_time'])
         spec_times.append(results['spec_time'])
 
+        cleanup()
+
     print("Finished speculative decoding")
 
     if plot_times:
-        plot_times(base_times, spec_times)
+        plot_timings(base_times, spec_times)
 
-
+    del target_model, draft_model
     return base_times, spec_times

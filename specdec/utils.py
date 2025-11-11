@@ -65,6 +65,6 @@ def plot_times(baseline_timings, speculative_timings):
     speedup = avg_baseline / avg_speculative
     fig.suptitle(f'Average Speedup: {speedup:.2f}×', 
                  fontsize=16, fontweight='bold', y=1.02)
-    
+    plt.savefig('plot.png')
     plt.tight_layout()
     plt.show()

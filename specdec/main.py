@@ -1,11 +1,11 @@
 import torch
 from transformers import AutoTokenizer, AutoModelForCausalLM
 from typing import List
+from tqdm import tqdm
 
 from utils import Timer, PROMPTS, plot_times
 
 DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
-
 
 def get_model_and_tokenizer(model_string: str):
     model = AutoModelForCausalLM.from_pretrained(
@@ -14,7 +14,6 @@ def get_model_and_tokenizer(model_string: str):
     ).eval()
     tokenizer = AutoTokenizer.from_pretrained(model_string)
     return model, tokenizer
-
 
 @torch.no_grad()
 def run_baseline(target_model, target_tokenizer, inputs, max_new_tokens):
@@ -62,6 +61,9 @@ def verify_draft_tokens(draft_tokens, draft_probs, input_ids, target_model):
     target_out = target_model(sequence)
     target_logits = target_out.logits[0]
 
+    num_accepted = 0
+    num_draft = draft_tokens.shape[0]
+
     for i, token_id in enumerate(draft_tokens[0]):
         pos = seq_len - 1 + i
 
@@ -73,14 +75,18 @@ def verify_draft_tokens(draft_tokens, draft_probs, input_ids, target_model):
 
         if torch.rand(1).item() < ratio:
             accepted.append(token_id.item())
+            num_accepted += 1
         else:
             new_token = torch.multinomial(target_probs, 1).item()
             accepted.append(new_token)
             break
 
+    num_rejected = num_draft - num_accepted 
+
     accepted = torch.tensor(accepted, device=input_ids.device).unsqueeze(0)
     final_sequence = torch.cat([input_ids, accepted], dim=1)
-    return final_sequence
+
+    return final_sequence, num_rejected, num_accepted
 
 
 def speculative_decoding(
@@ -91,21 +97,29 @@ def speculative_decoding(
     max_draft_tokens: int
 ):
     inputs = target_tokenizer([prompt], return_tensors="pt").to(target_model.device)
-    base_out = run_baseline(target_model, target_tokenizer, inputs, max_new_tokens)
 
-    with Timer() as draft_t:
+    with Timer() as base_t:
+        base_out = run_baseline(target_model, target_tokenizer, inputs, max_new_tokens)
+
+    with Timer() as spec_t:
         draft_tokens, draft_probs = generate_draft_tokens(
             draft_model, inputs["input_ids"], max_draft_tokens
         )
 
-    with Timer() as verify_t:
-        final_ids = verify_draft_tokens(
+        final_ids, num_rejected, num_accepted = verify_draft_tokens(
             draft_tokens, draft_probs, inputs["input_ids"], target_model
         )
+
+    results = {
+        'num_accepted': num_accepted,
+        'num_rejected': num_rejected,
+        'base_time': base_t.time_elapsed,
+        'speculative_time': spec_t.time_elapsed,
+    }
     
 
-    result = target_tokenizer.decode(final_ids[0], skip_special_tokens=True)
-    return base_out, result, draft_t.time_elapsed, verify_t.time_elapsed
+    spec_out = target_tokenizer.decode(final_ids[0], skip_special_tokens=True)
+    return results, spec_out, base_out
 
 
 def run(
@@ -127,11 +141,12 @@ def run(
     target_model, target_tokenizer = get_model_and_tokenizer(target)
     draft_model, _ = get_model_and_tokenizer(draft)
 
-    draft_times, verified_times = [], []
+    base_times, spec_times = [], []
     if prompts is [] or prompts is None:
         prompts = PROMPTS
-    for prompt in prompts:
-        base_out, result, draft_time_elapsed, verify_time_elapsed = speculative_decoding(
+
+    for prompt in tqdm(prompts, desc="SpecDec", ncols=80):
+        results, spec_out, base_out = speculative_decoding(
             target_model, target_tokenizer,
             draft_model,
             prompt,
@@ -139,13 +154,13 @@ def run(
             max_draft_tokens=max_draft_tokens
         )
 
-        draft_times.append(draft_time_elapsed)
-        verified_times.append(verify_time_elapsed)
+        base_times.append(results['base_time'])
+        spec_times.append(results['spec_time'])
 
     print("Finished speculative decoding")
 
     if plot_times:
-        plot_times(draft_times, verified_times)
+        plot_times(base_times, spec_times)
 
 
-    return draft_times, verified_times
+    return base_times, spec_times
